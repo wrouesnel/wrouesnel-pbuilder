@@ -7,13 +7,13 @@ PBUILDER_REPO=$HOME/pbuilder-repo
 PBUILDER_HOOKS=$HOME/.pbuilder-hooks
 
 echo "Generating a key for use as signing..."
-gpg --gen-key 
+gpg --gen-key --no-default-keyring --secret-keyring $PBUILDER_REPO/pbuilder-secret.gpg --keyring $PBUILDER_REPO/pbuilder-public.gpg --trustdb-name $PBUILDER_REPO/trustdb.gpg
 
-echo "Installing $1 as signing key for pbuilder-repo..."
-gpg --export-secret-keys -a $1 | gpg --allow-secret-key-import --import --no-options --no-default-keyring --secret-keyring $PBUILDER_REPO/pbuilder-secret.gpg --keyring $PBUILDER_REPO/pbuilder-public.gpg --trustdb-name $PBUILDER_REPO/trustdb.gpg
+echo "Installing the new key as a trusted key on the host..."
+gpg --import --no-options --no-default-keyring --secret-keyring $PBUILDER_REPO/pbuilder-secret.gpg --keyring $PBUILDER_REPO/pbuilder-public.gpg --trustdb-name $PBUILDER_REPO/trustdb.gpg --export-secret-keys -a | gpg --allow-secret-key-import --import --no-options
 
 echo "Installing $1 as trusted key in apt..."
-gpg --export -a $1 | sudo apt-key add -
+gpg --import --no-options --no-default-keyring --secret-keyring $PBUILDER_REPO/pbuilder-secret.gpg --keyring $PBUILDER_REPO/pbuilder-public.gpg --trustdb-name $PBUILDER_REPO/trustdb.gpg --export-secret-keys -a | sudo apt-key add -
 
 echo "Making pbuilder repository directory..."
 mkdir -p $HOME/pbuilder-repo
@@ -26,4 +26,7 @@ cp pbuilder-hooks/* $PBUILDER_HOOKS
 echo "Installing .pbuilderrc..."
 cp .pbuilderrc $HOME/.pbuilderrc
 
+echo "Your new pbuilder keys are the following:"
+gpg --gen-key --no-default-keyring --secret-keyring $PBUILDER_REPO/pbuilder-secret.gpg --keyring $PBUILDER_REPO/pbuilder-public.gpg --trustdb-name $PBUILDER_REPO/trustdb.gpg --list-keys
 
+exit 0
