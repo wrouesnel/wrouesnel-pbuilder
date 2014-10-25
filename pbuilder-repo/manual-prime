@@ -1,0 +1,29 @@
+#!/bin/bash
+# Manual priming script for the pbuilder repo.
+# Expects to invoke $HOME/.pbuilder-hooks/D10apt-ftparchive
+# with a manual argument to force it to build. $1 should be the name
+# the build (i.e. precise-amd64)
+
+if [[ $EUID != 0 ]]; then
+    echo "Must run as root."
+    sudo $0 $@
+    exit $?
+fi
+
+DIST=$1
+ARCH=$2
+
+if [ -z $1 ]; then
+	echo "No build result proposed. Attempting auto-select of current environment."
+fi
+
+: ${DIST:=$(lsb_release --short --codename)}
+: ${ARCH:=$(dpkg --print-architecture)}
+
+NAME="$DIST-$ARCH"
+
+export PBUILDERHOOKS=~/.pbuilder-hooks
+
+echo "Running D10apt-ftparchive"
+
+DIST=$DIST ARCH=$ARCH ~/.pbuilder-hooks/D10apt-ftparchive

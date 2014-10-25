@@ -1,0 +1,32 @@
+# Common script include file.
+
+# Distribution name remapping
+ORIGINALDIST=$DIST
+
+case "$DIST" in
+    romeo)
+    	DIST=utopic
+    	;;
+	qiana)
+		DIST=trusty
+		;;
+    petra)
+        DIST=saucy
+        ;;
+	olivia)
+		DIST=raring
+		;;
+	maya)
+		DIST=precise
+		;;
+	nadia)
+		DIST=quantal
+		;;
+	*)
+        echo "Distribution Name Remapping not needed: $DIST"
+		;;
+esac
+
+if [ "$ORIGINALDIST" != "$DIST" ]; then
+	echo "Distribution Name Remapped: $ORIGINALDIST -> $DIST"
+fi

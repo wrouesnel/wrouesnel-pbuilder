@@ -1,0 +1,60 @@
+#!/bin/bash
+# 2012-09-30 will - heavily modified to use a package location in the user's
+# home directory
+#
+# 2009-04-09 tyler - use previously built packages as an apt source
+# http://blog.edseek.com/~jasonb/articles/pbuilder_backports/pbuilderbuild.html#pbuilderhook
+
+echo Calling $0
+
+: ${DIST:=$(lsb_release --short --codename)}
+: ${ARCH:=$(dpkg --print-architecture)}
+
+echo "Running apt-ftparchive for $DIST-$ARCH"
+
+# Run the name remap code
+#PBUILDERHOOKS=~/.pbuilder-hooks
+. $PBUILDERHOOKS/common-name-remapping
+
+NAME="$DIST-$ARCH"
+BUILDRESULT="/var/cache/pbuilder/$NAME/result"
+
+# Sanity check!
+if [ ! -d $BUILDRESULT ]; then
+    echo Could not find $BUILDRESULT
+    echo Aborting operation.
+    exit 1
+fi
+
+# get the local repository location (see .pbuilderrc)
+# (we read in from a file here since we can't rely on knowing the username)
+PBUILDER_REPO=`cat $BUILDRESULT/.local_repository_location`
+
+# move built packages to localrepo
+if [[ ! -z $(ls "$BUILDRESULT") ]]; then
+    mv -t "$PBUILDER_REPO/$NAME" $BUILDRESULT/*
+fi
+
+# chown the files back to the owning user
+chown $(stat -c '%u:%g' "$PBUILDER_REPO/$NAME") $PBUILDER_REPO/$NAME/*
+
+echo "Local Repository Location is: $PBUILDER_REPO/$NAME"
+
+# create apt archive of previously built packages
+( cd $PBUILDER_REPO/$NAME ; apt-ftparchive packages -c $PBUILDER_REPO/$NAME/apt-ftparchive.conf . > $PBUILDER_REPO/$NAME/Packages )
+( cd $PBUILDER_REPO/$NAME ; apt-ftparchive sources -c $PBUILDER_REPO/$NAME/apt-ftparchive.conf . > $PBUILDER_REPO/$NAME/Sources )
+( cd $PBUILDER_REPO/$NAME ; apt-ftparchive release -c $PBUILDER_REPO/$NAME/apt-ftparchive.conf . > $PBUILDER_REPO/$NAME/Release )
+
+# sign the new release file
+# note: gpg is kind of a pain when you're trying to use it independently of 
+# it's normal procedures.
+( cd $PBUILDER_REPO/$NAME ; gpg --yes --no-options --no-default-keyring --secret-keyring $PBUILDER_REPO/pbuilder-secret.gpg --keyring $PBUILDER_REPO/pbuilder-public.gpg --trustdb-name $PBUILDER_REPO/trustdb.gpg -abs -o $PBUILDER_REPO/$NAME/Release.gpg $PBUILDER_REPO/$NAME/Release )
+
+# Run apt-get update on the pbuilder-image (or local system if we're invoking
+# manually
+#apt-get update -o Dir::Etc::sourcelist="sources.list.d/local-repository.list" \
+#-o Dir::Etc::sourceparts="-" -o APT::Get::List-Cleanup="0"
+
+apt-get update
+
+exit 0
