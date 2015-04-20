@@ -1,4 +1,4 @@
-# Will Rouesnel <w.rouesnel@gmail.com>
+# Will
 # Rather more complicated support for sending build results to user home
 # directory and signing with a default pbuilder key.
 #
@@ -124,10 +124,23 @@ case "$DIST" in
         ;;
 esac
 
-# Add local keyrings (which will trust the pbuilder key)
-DEBOOTSTRAPOPTS="--keyring=/etc/apt/trusted.gpg"
-APTKEYRINGS=("/etc/apt/trusted.gpg")
+# Add local keyrings. Due to changes, we actually need to create and manage
+# a combined trusted keyring to keep everything working.
+PBUILDERREPO=$HOME/pbuilder-repo
 
+echo "Merging host keyrings into $PBUILDERREPO/host-trusted.gpg"
+echo $PBUILDERREPO
+if [ -e $PBUILDERREPO/host-trusted.gpg ]; then
+    mv -f $PBUILDERREPO/host-trusted.gpg $PBUILDERREPO/host-trusted.gpg.bak
+fi
+gpg --no-options --no-default-keyring --export -a --keyring /etc/apt/trusted.gpg | \
+    gpg --no-options --no-default-keyring --keyring $PBUILDERREPO/host-trusted.gpg --import -a || true
+find /etc/apt/trusted.gpg.d/ -type f -name '*.gpg' -print | while read f; do
+    gpg --no-options --no-default-keyring --export -a --keyring $f | \
+        gpg --no-options --no-default-keyring --keyring $PBUILDERREPO/host-trusted.gpg --import -a || true
+done
+
+DEBOOTSTRAPOPTS="--keyring=$PBUILDERREPO/host-trusted.gpg"
 # sign packages - if I'm building them they're trusted by me at least
 AUTO_DEBSIGN="yes"
 
