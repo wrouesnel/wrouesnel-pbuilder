@@ -1,0 +1,234 @@
+# Will Rouesnel <w.rouesnel@gmail.com>
+# Rather more complicated support for sending build results to user home
+# directory and signing with a default pbuilder key.
+#
+# debsign key is set in ~/.devscripts
+# uses the detect-http-proxy script to set http proxy.
+#
+# 2008-08-13 tyler
+# support building multiple distributions and architecture
+
+# this is an ugly hack to try and let pbuilder know which user it should
+# be working with. Basically we define check if an environment variable exists
+# and if it does not, define it - this should catch the correct user.
+if [ -z $pbuilder_user ]; then
+	pbuilder_user=$SUDO_USER
+	export pbuilder_user
+fi
+echo "PBuilder User: $pbuilder_user"
+
+# determine if we're invoked by pbuilder
+if [ -z $BASEPATH ]; then
+    IS_PBUILDER=1
+fi
+
+# Get the distribution names
+: ${DIST:=$(lsb_release --short --codename)}
+: ${ARCH:=$(dpkg --print-architecture)}
+
+# Do any remapping for Linux Mint
+export PBUILDERHOOKS=~/.pbuilder-hooks
+. $PBUILDERHOOKS/common-name-remapping
+
+# detect and set http_proxy using local script
+APT_PROXY_CMD=$(cat /etc/apt/apt.conf /etc/apt/apt.conf.d/* 2> /dev/null |
+ 				grep -v -e ^# -e ^\/\/ -e ^$ | 
+                grep Acquire::http::ProxyAutoDetect |
+                sed 's/Acquire::http::ProxyAutoDetect\ //' | sed '$s/;$//')
+
+# did we get an apt proxy cmd?
+if [ ! -z $APT_PROXY_CMD ]; then
+	echo "Trying to detect proxy using apt script..."
+	deb_proxy=$(bash -c $APT_PROXY_CMD)
+else
+	# try and get just a regular proxy
+	deb_proxy=$(cat /etc/apt/apt.conf /etc/apt/apt.conf.d/* 2> /dev/null |
+	 				grep -v -e ^# -e ^\/\/ -e ^$ | 
+		            grep 'Acquire::http::ProxyAutoDetect ' |
+		            sed 's/Acquire::http::Proxy\ //' | sed '$s/;$//' | tr -d '"' )
+fi
+
+if [ ! -z $deb_proxy ]; then
+	echo "pbuilder will use proxy: $deb_proxy"
+else
+	echo "No proxy will be used."
+fi
+
+# Try and match names to mirror sites
+shopt -s extglob
+UBUNTUNAMES="@($(cat $PBUILDERHOOKS/ubuntu-names))"
+OLDUBUNTUNAMES="@($(cat $PBUILDERHOOKS/oldubuntu-names))"
+DEBIANNAMES="@($(cat $PBUILDERHOOKS/debian-names))"
+
+case "$DIST" in
+    $UBUNTUNAMES) # ubuntu specific
+        MIRRORSITE="http://archive.ubuntu.com/ubuntu/"
+        COMPONENTS="main restricted universe multiverse"
+        ;;
+    $OLDUBUNTUNAMES) # old ubuntu
+        MIRRORSITE="http://old-releases.ubuntu.com/ubuntu/"
+        COMPONENTS="main restricted universe multiverse"
+        ;;
+    $DEBIANNAMES) # debian specific
+        MIRRORSITE="http://mirrors.kernel.org/debian/"
+        COMPONENTS="main contrib non-free"
+        ;;
+    *)  # Try and determine if there's a new release
+        echo "Unknown distribution: $DIST"
+        echo "Attempting to match new Ubuntu release:"
+        UBUNTULIST=$(wget -qO- "http://archive.ubuntu.com/ubuntu/dists/" | \
+            sed -n 's/.*href="\(.*\)\/".*/\1/p')
+        for UBUNTULISTITEM in $UBUNTULIST; do
+            if [[ "$UBUNTULISTITEM" == "$DIST" ]]; then
+                echo "New release found in Ubuntu archives!"
+                echo "Adding it to the known release list."
+                echo "$DIST|$(cat $PBUILDERHOOKS/ubuntu-names)" \
+                    > $PBUILDERHOOKS/ubuntu-names
+                MIRRORSITE="http://archive.ubuntu.com/ubuntu/"
+                COMPONENTS="main restricted universe multiverse"
+                RESOLVEDUNKNOWN=1
+                break
+            fi
+        done
+        
+        if [ -z $RESOLVEDUNKNOWN ]; then
+            echo "Couldn't find a mirror for the new specified release."
+            exit 1
+        fi
+        ;;
+esac
+
+# If DIST evaluates to a suitable line in the local apt configuration, use that
+# and take advantage of the likely primed cache if there's any proxy's in front
+# of us.
+#LOCAL_CONFIGURED_MIRROR=$(cat /etc/apt/sources.list /etc/apt/sources.list.d/*.list 2> /dev/null | 
+#					grep -v -e ^# -e ^\/\/ -e ^$ | 
+#					grep "^deb " | 
+#					grep -e "$DIST $COMPONENTS" | sed s/deb\ // | cut -d' ' -f1)
+
+#if [ ! -z $LOCAL_CONFIGURED_MIRROR ]; then
+#	echo "Found alternative mirrors."
+#	MIRRORSITE=$LOCAL_CONFIGURED_MIRROR
+#fi
+
+# Packages needed to support deb details
+EXTRAPACKAGES="apt-utils lsb-release"
+
+# configure dist specific packages
+case "$DIST" in
+    $UBUNTUNAMES|$OLDUBUNTUNAMES) # ubuntu specific
+        if [ "$DIST" \> "lucid" ]; then
+            echo "enabling eatmydata for > lucid release"
+            EXTRAPACKAGES="$EXTRAPACKAGES eatmydata"
+        fi
+        ;;
+esac
+
+# Add local keyrings (which will trust the pbuilder key)
+DEBOOTSTRAPOPTS="--keyring=/etc/apt/trusted.gpg"
+APTKEYRINGS=("/etc/apt/trusted.gpg")
+
+# sign packages - if I'm building them they're trusted by me at least
+AUTO_DEBSIGN="yes"
+
+NAME="$DIST-$ARCH"
+DISTRIBUTION="$DIST"
+DEBOOTSTRAPOPTS=("--arch" "$ARCH" "${DEBOOTSTRAPOPTS[@]}")
+BUILDRESULT="/var/cache/pbuilder/$NAME/result"
+DEBBUILDOPTS="-j4 "
+
+# Regular pbuilder support
+BASETGZ="$(dirname $BASETGZ)/$NAME-base.tgz"
+
+# QemuBuilder/CowDancer
+BASEPATH="(dirname $BASEPATH)/$NAME-base.qemu"
+
+# TODO: replace with something that automatically acquires the right kernel
+KERNEL="/vmlinuz"
+INITRD="/initrd.img"
+ARCHITECTURE="$ARCH"
+
+# Disable apt-cache since we use apt-cacher-ng
+APTCACHE=""
+# Don't rebuild source files (.diff.gz, .dsc), or list them in .changes
+# See Ubuntu bug 118181
+#DEBBUILDOPTS=""
+
+# Dump out some information about what's going on here
+echo "Environment name: $NAME"
+echo "Distribution is: $DIST"
+echo "DEBOOTSTRAPOPTS is: ${DEBOOTSTRAPOPTS[@]}"
+
+# Adjust output according to pbuilder/qemubuilder
+if [ -z $IS_PBUILDER ]; then
+    echo "Environment will be stored in: $BASEPATH"
+else
+    echo "Environment will be stored in: $BASETGZ"
+fi
+
+# Local pbuilder result repository
+PBUILDER_REPO=$(eval echo ~${pbuilder_user})/pbuilder-repo
+echo "Local pbuilder repository: $PBUILDER_REPO"
+
+BINDMOUNTS="$PBUILDER_REPO $BUILDRESULT $PBUILDERHOOKS"
+OTHERMIRROR="deb file:$PBUILDER_REPO/$NAME ./"
+HOOKDIR="$PBUILDERHOOKS"
+
+# Setup the build destination
+if [ ! -d $BUILDRESULT ] ; then
+        mkdir -p $BUILDRESULT
+        # set permissions so I can delete files
+        chgrp $pbuilder_user $BUILDRESULT
+        chmod g+rwx $BUILDRESULT
+fi
+
+# Setup the local build repository
+if [ ! -d $PBUILDER_REPO/$NAME ] ; then
+	mkdir -p $PBUILDER_REPO/$NAME
+	# set permissions so I can delete files
+	chgrp $pbuilder_user $PBUILDER_REPO/$NAME
+	chmod g+rwxs $PBUILDER_REPO/$NAME
+fi
+
+if [ ! -e $PBUILDER_REPO/$NAME/apt-ftparchive.conf ]; then
+	cat << EOF > $PBUILDER_REPO/$NAME/apt-ftparchive.conf
+# Configuration file for the pbuilder flat-file archive.
+
+APT::FTPArchive::Release::Codename "$DIST";
+APT::FTPArchive::Release::Origin "pbuilder";
+APT::FTPArchive::Release::Components "main";
+APT::FTPArchive::Release::Label "pbuilder";
+APT::FTPArchive::Release::Architectures "$ARCH source";
+APT::FTPArchive::Release::Description "Automatic Repository for pbuilder.";
+EOF
+fi
+
+# PBuilder create will fail if apt errors out trying to download a non-existent
+# packages file. It should always exist, so create it here if it doesn't.
+if [ ! -e $PBUILDER_REPO/$NAME/Packages ]; then
+	touch $PBUILDER_REPO/$NAME/Packages
+fi
+
+# Make sure the chroot knows where files for the local repo will go.
+if [ -e $BUILDRESULT/.local_repository_location ] ; then
+	rm $BUILDRESULT/.local_repository_location
+fi
+
+touch $BUILDRESULT/.local_repository_location
+	cat << EOF > $BUILDRESULT/.local_repository_location
+$PBUILDER_REPO
+EOF
+
+# enable eatmydata to speed up pbuilder
+if [[ $EXTRAPACKAGES = *eatmydata* ]]; then
+    if [ -z "$LD_PRELOAD" ]; then
+        LD_PRELOAD=/usr/lib/libeatmydata/libeatmydata.so
+    else
+        LD_PRELOAD="$LD_PRELOAD":/usr/lib/libeatmydata/libeatmydata.so
+    fi
+fi
+
+export LD_PRELOAD
+
+# Set the detected Deb proxy to the http proxy
+export http_proxy=$deb_proxy

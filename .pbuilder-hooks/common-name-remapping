@@ -4,7 +4,7 @@
 ORIGINALDIST=$DIST
 
 case "$DIST" in
-    romeo)
+    romeo|rebecca)
     	DIST=utopic
     	;;
 	qiana)

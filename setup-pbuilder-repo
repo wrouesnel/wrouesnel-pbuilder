@@ -2,7 +2,6 @@
 # Setup wrouesnel style pbuilder configuration for quick and easy automatic
 # builds.
 
-
 PBUILDER_REPO=$HOME/pbuilder-repo
 PBUILDER_HOOKS=$HOME/.pbuilder-hooks
 
@@ -27,6 +26,16 @@ echo "Installing .pbuilderrc..."
 cp .pbuilderrc $HOME/.pbuilderrc
 
 echo "Your new pbuilder keys are the following:"
-gpg --gen-key --no-default-keyring --secret-keyring $PBUILDER_REPO/pbuilder-secret.gpg --keyring $PBUILDER_REPO/pbuilder-public.gpg --trustdb-name $PBUILDER_REPO/trustdb.gpg --list-keys
+gpg --no-default-keyring --secret-keyring $PBUILDER_REPO/pbuilder-secret.gpg --keyring $PBUILDER_REPO/pbuilder-public.gpg --trustdb-name $PBUILDER_REPO/trustdb.gpg --list-keys
+
+read -p "Would you like to install the included .pbuilderrc file? (y/n default NO)" ANSWER
+if [[ $ANSWER =~ ^[Yy]$ ]]; then
+    echo "Installing to $HOME/.pbuilderrc..."
+    if [ -e $HOME/.pbuilderrc ]; then
+        echo "Backing up existing .pbuilderrc as .pbuilderrc.$(date +%Y%m%d%H%M%S).bak"
+        mv "$HOME/.pbuilderrc" "$HOME/.pbuilderrc.$(date +%Y%m%d%H%M%S).bak"
+    fi
+    mv ".pbuilderrc" "$HOME/.pbuilderrc"
+fi
 
 exit 0
