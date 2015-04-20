@@ -20,7 +20,7 @@ cp -r pbuilder-repo/* $PBUILDER_REPO/
 
 echo "Setting up pbuilder hooks..."
 mkdir -p $PBUILDER_HOOKS
-cp pbuilder-hooks/* $PBUILDER_HOOKS
+cp .pbuilder-hooks/* $PBUILDER_HOOKS
 
 echo "Installing .pbuilderrc..."
 cp .pbuilderrc $HOME/.pbuilderrc
