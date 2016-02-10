@@ -5,6 +5,9 @@
 PBUILDER_REPO=$HOME/pbuilder-repo
 PBUILDER_HOOKS=$HOME/.pbuilder-hooks
 
+mkdir $PBUILDER_REPO
+mkdir $PBUILDER_HOOKS
+
 echo "Generating a key for use as signing..."
 gpg --gen-key --no-default-keyring --secret-keyring $PBUILDER_REPO/pbuilder-secret.gpg --keyring $PBUILDER_REPO/pbuilder-public.gpg --trustdb-name $PBUILDER_REPO/trustdb.gpg
 
