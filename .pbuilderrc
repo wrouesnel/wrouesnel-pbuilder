@@ -234,10 +234,11 @@ EOF
 
 # enable eatmydata to speed up pbuilder
 if [[ $EXTRAPACKAGES = *eatmydata* ]]; then
+    EATMYDATA_PATH=$(dpkg -L libeatmydata1 | grep libeatmydata.so$)
     if [ -z "$LD_PRELOAD" ]; then
-        LD_PRELOAD=/usr/lib/libeatmydata/libeatmydata.so
+        LD_PRELOAD=$EATMYDATA_PATH
     else
-        LD_PRELOAD="$LD_PRELOAD":/usr/lib/libeatmydata/libeatmydata.so
+        LD_PRELOAD="$LD_PRELOAD":$EATMYDATA_PATH
     fi
 fi
 
