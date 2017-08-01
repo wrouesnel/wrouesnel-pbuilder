@@ -48,7 +48,16 @@ echo "Local Repository Location is: $PBUILDER_REPO/$NAME"
 # sign the new release file
 # note: gpg is kind of a pain when you're trying to use it independently of 
 # it's normal procedures.
-( cd $PBUILDER_REPO/$NAME ; gpg --yes --no-options --no-default-keyring --secret-keyring $PBUILDER_REPO/pbuilder-secret.gpg --keyring $PBUILDER_REPO/pbuilder-public.gpg --trustdb-name $PBUILDER_REPO/trustdb.gpg -abs -o $PBUILDER_REPO/$NAME/Release.gpg $PBUILDER_REPO/$NAME/Release )
+( \
+    cd $PBUILDER_REPO/$NAME ; \
+    gpg --home $PBUILDER_REPO --yes --no-options --no-default-keyring \
+    --secret-keyring $PBUILDER_REPO/pbuilder-secret.gpg \
+    --keyring $PBUILDER_REPO/pbuilder-public.gpg \
+    --trustdb-name $PBUILDER_REPO/trustdb.gpg -abs \
+    -u 0x${DEBSIGN_KEYID} \
+    -o $PBUILDER_REPO/$NAME/Release.gpg \
+    $PBUILDER_REPO/$NAME/Release \
+)
 
 # Run apt-get update on the pbuilder-image (or local system if we're invoking
 # manually
