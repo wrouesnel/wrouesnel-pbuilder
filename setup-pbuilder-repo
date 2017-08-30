@@ -9,13 +9,13 @@ mkdir $PBUILDER_REPO
 mkdir $PBUILDER_HOOKS
 
 echo "Generating a key for use as signing..."
-gpg --gen-key --no-default-keyring --secret-keyring $PBUILDER_REPO/pbuilder-secret.gpg --keyring $PBUILDER_REPO/pbuilder-public.gpg --trustdb-name $PBUILDER_REPO/trustdb.gpg
+gpg --no-options --no-default-keyring --homedir $PBUILDER_REPO --keyring $PBUILDER_REPO/pbuilder-public.gpg --trustdb-name $PBUILDER_REPO/trustdb.gpg --gen-key
 
 echo "Installing the new key as a trusted key on the host..."
-gpg --no-options --no-default-keyring --secret-keyring $PBUILDER_REPO/pbuilder-secret.gpg --keyring $PBUILDER_REPO/pbuilder-public.gpg --trustdb-name $PBUILDER_REPO/trustdb.gpg --export-secret-keys -a | gpg --allow-secret-key-import --import --no-options
+gpg --no-options --no-default-keyring --homedir $PBUILDER_REPO --keyring $PBUILDER_REPO/pbuilder-public.gpg --trustdb-name $PBUILDER_REPO/trustdb.gpg --export-secret-keys -a | gpg --allow-secret-key-import --import --no-options
 
 echo "Installing $1 as trusted key in apt..."
-gpg --no-options --no-default-keyring --secret-keyring $PBUILDER_REPO/pbuilder-secret.gpg --keyring $PBUILDER_REPO/pbuilder-public.gpg --trustdb-name $PBUILDER_REPO/trustdb.gpg --export-secret-keys -a | sudo apt-key add -
+gpg --no-options --no-default-keyring --homedir $PBUILDER_REPO --keyring $PBUILDER_REPO/pbuilder-public.gpg --trustdb-name $PBUILDER_REPO/trustdb.gpg --export-secret-keys -a | sudo apt-key add -
 
 echo "Making pbuilder repository directory..."
 mkdir -p $HOME/pbuilder-repo
@@ -38,7 +38,7 @@ if [[ $ANSWER =~ ^[Yy]$ ]]; then
         echo "Backing up existing .pbuilderrc as .pbuilderrc.$(date +%Y%m%d%H%M%S).bak"
         mv "$HOME/.pbuilderrc" "$HOME/.pbuilderrc.$(date +%Y%m%d%H%M%S).bak"
     fi
-    mv ".pbuilderrc" "$HOME/.pbuilderrc"
+    cp ".pbuilderrc" "$HOME/.pbuilderrc"
 fi
 
 exit 0

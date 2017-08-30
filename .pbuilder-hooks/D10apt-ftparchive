@@ -41,9 +41,9 @@ chown $(stat -c '%u:%g' "$PBUILDER_REPO/$NAME") $PBUILDER_REPO/$NAME/*
 echo "Local Repository Location is: $PBUILDER_REPO/$NAME"
 
 # create apt archive of previously built packages
-( cd $PBUILDER_REPO/$NAME ; apt-ftparchive packages -c $PBUILDER_REPO/$NAME/apt-ftparchive.conf . > $PBUILDER_REPO/$NAME/Packages )
-( cd $PBUILDER_REPO/$NAME ; apt-ftparchive sources -c $PBUILDER_REPO/$NAME/apt-ftparchive.conf . > $PBUILDER_REPO/$NAME/Sources )
-( cd $PBUILDER_REPO/$NAME ; apt-ftparchive release -c $PBUILDER_REPO/$NAME/apt-ftparchive.conf . > $PBUILDER_REPO/$NAME/Release )
+( cd $PBUILDER_REPO/$NAME ; apt-ftparchive packages -c $PBUILDER_REPO/$NAME/apt-ftparchive.conf . > $PBUILDER_REPO/$NAME/Packages ) || ( echo Packages generation failed && exit 1 )
+( cd $PBUILDER_REPO/$NAME ; apt-ftparchive sources -c $PBUILDER_REPO/$NAME/apt-ftparchive.conf . > $PBUILDER_REPO/$NAME/Sources ) || ( echo Sources generation failed && exit 1 )
+( cd $PBUILDER_REPO/$NAME ; apt-ftparchive release -c $PBUILDER_REPO/$NAME/apt-ftparchive.conf . > $PBUILDER_REPO/$NAME/Release ) || ( echo Release generation failed && exit 1 )
 
 # sign the new release file
 # note: gpg is kind of a pain when you're trying to use it independently of 
@@ -51,13 +51,12 @@ echo "Local Repository Location is: $PBUILDER_REPO/$NAME"
 ( \
     cd $PBUILDER_REPO/$NAME ; \
     gpg --home $PBUILDER_REPO --yes --no-options --no-default-keyring \
-    --secret-keyring $PBUILDER_REPO/pbuilder-secret.gpg \
     --keyring $PBUILDER_REPO/pbuilder-public.gpg \
     --trustdb-name $PBUILDER_REPO/trustdb.gpg -abs \
-    -u 0x${DEBSIGN_KEYID} \
+    -u ${DEBSIGN_KEYID} \
     -o $PBUILDER_REPO/$NAME/Release.gpg \
     $PBUILDER_REPO/$NAME/Release \
-)
+) || ( echo "Release signing failed." && exit 1 )
 
 # Run apt-get update on the pbuilder-image (or local system if we're invoking
 # manually

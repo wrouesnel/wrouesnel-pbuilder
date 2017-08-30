@@ -149,10 +149,10 @@ if [ -e $PBUILDERREPO/host-trusted.gpg ]; then
     mv -f $PBUILDERREPO/host-trusted.gpg $PBUILDERREPO/host-trusted.gpg.bak
 fi
 gpg --no-options --no-default-keyring --export -a --keyring /etc/apt/trusted.gpg | \
-    gpg --no-options --no-default-keyring --keyring $PBUILDERREPO/host-trusted.gpg --import -a || true
+    gpg --homedir $PBUILDERREPO --no-options --no-default-keyring --keyring $PBUILDERREPO/host-trusted.gpg --import -a || true
 find /etc/apt/trusted.gpg.d/ -type f -name '*.gpg' -print | while read f; do
     gpg --no-options --no-default-keyring --export -a --keyring $f | \
-        gpg --no-options --no-default-keyring --keyring $PBUILDERREPO/host-trusted.gpg --import -a || true
+        gpg --homedir $PBUILDERREPO --no-options --no-default-keyring --keyring $PBUILDERREPO/host-trusted.gpg --import -a || true
 done
 
 DEBOOTSTRAPOPTS="--keyring=$PBUILDERREPO/host-trusted.gpg"
