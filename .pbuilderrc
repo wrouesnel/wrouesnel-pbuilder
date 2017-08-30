@@ -155,6 +155,7 @@ find /etc/apt/trusted.gpg.d/ -type f -name '*.gpg' -print | while read f; do
         gpg --homedir $PBUILDERREPO --no-options --no-default-keyring --keyring $PBUILDERREPO/host-trusted.gpg --import -a || true
 done
 
+APTKEYRINGS=( "$PBUILDERREPO/host-trusted.gpg" )
 DEBOOTSTRAPOPTS="--keyring=$PBUILDERREPO/host-trusted.gpg"
 # sign packages - if I'm building them they're trusted by me at least
 AUTO_DEBSIGN="yes"
@@ -198,7 +199,7 @@ fi
 PBUILDER_REPO=$(eval echo ~${pbuilder_user})/pbuilder-repo
 echo "Local pbuilder repository: $PBUILDER_REPO"
 
-BINDMOUNTS="$PBUILDER_REPO $BUILDRESULT $PBUILDERHOOKS $GPG_HOME"
+BINDMOUNTS="$PBUILDER_REPO $BUILDRESULT $PBUILDERHOOKS /etc/apt"
 OTHERMIRROR="deb file:$PBUILDER_REPO/$NAME ./"
 HOOKDIR="$PBUILDERHOOKS"
 

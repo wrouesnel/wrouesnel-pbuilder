@@ -50,10 +50,9 @@ echo "Local Repository Location is: $PBUILDER_REPO/$NAME"
 # it's normal procedures.
 ( \
     cd $PBUILDER_REPO/$NAME ; \
-    gpg --home $PBUILDER_REPO --yes --no-options --no-default-keyring \
+    gpg --homedir $PBUILDER_REPO --yes --no-options --no-default-keyring \
     --keyring $PBUILDER_REPO/pbuilder-public.gpg \
     --trustdb-name $PBUILDER_REPO/trustdb.gpg -abs \
-    -u ${DEBSIGN_KEYID} \
     -o $PBUILDER_REPO/$NAME/Release.gpg \
     $PBUILDER_REPO/$NAME/Release \
 ) || ( echo "Release signing failed." && exit 1 )
