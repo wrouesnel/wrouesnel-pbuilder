@@ -1,40 +1,88 @@
 #!/bin/bash
 # Setup wrouesnel style pbuilder configuration for quick and easy automatic
 # builds.
+# See: https://stackoverflow.com/questions/59895/how-to-get-the-source-directory-of-a-bash-script-from-within-the-script-itself
+# Note: you can't refactor this out: its at the top of every script so the scripts can find their includes.
+SOURCE="${BASH_SOURCE[0]}"
+while [ -h "$SOURCE" ]; do # resolve $SOURCE until the file is no longer a symlink
+  DIR="$( cd -P "$( dirname "$SOURCE" )" >/dev/null 2>&1 && pwd )"
+  SOURCE="$(readlink "$SOURCE")"
+  [[ $SOURCE != /* ]] && SOURCE="$DIR/$SOURCE" # if $SOURCE was a relative symlink, we need to resolve it relative to the path where the symlink file was located
+done
+SCRIPT_DIR="$( cd -P "$( dirname "$SOURCE" )" >/dev/null 2>&1 && pwd )"
 
-PBUILDER_REPO=$HOME/pbuilder-repo
-PBUILDER_HOOKS=$HOME/.pbuilder-hooks
+function log() {
+  echo "$*" 1>&2
+}
 
-mkdir $PBUILDER_REPO
-mkdir $PBUILDER_HOOKS
+function fatal() {
+  echo "$*" 1>&2
+  exit 1
+}
+
+PBUILDER_REPO="$HOME/pbuilder/repo"
+PBUILDER_HOOKS="$HOME/pbuilder/hooks"
+PBUILDER_CACHE="$HOME/.config/pbuilder"
+
+PBUILDER_GPG="$HOME/pbuilder/repo/gpg"
+
+mkdir -p "$PBUILDER_REPO"
+mkdir -p "$PBUILDER_HOOKS"
 
 echo "Generating a key for use as signing..."
-gpg --no-options --no-default-keyring --homedir $PBUILDER_REPO --keyring $PBUILDER_REPO/pbuilder-public.gpg --trustdb-name $PBUILDER_REPO/trustdb.gpg --gen-key
+gpg --no-options \
+    --no-default-keyring \
+    --homedir "$PBUILDER_GPG" \
+    --keyring "$PBUILDER_REPO/pbuilder-public.gpg" \
+    --trustdb-name "$PBUILDER_REPO/trustdb.gpg" \
+    --gen-key
 
-echo "Installing the new key as a trusted key on the host..."
-gpg --no-options --no-default-keyring --homedir $PBUILDER_REPO --keyring $PBUILDER_REPO/pbuilder-public.gpg --trustdb-name $PBUILDER_REPO/trustdb.gpg --export-secret-keys -a | gpg --allow-secret-key-import --import --no-options
+echo "Installing the new key as a trusted key in the users keyring..."
+gpg --no-options \
+    --no-default-keyring \
+    --homedir "$PBUILDER_GPG" \
+    --keyring "$PBUILDER_REPO/pbuilder-public.gpg" \
+    --trustdb-name "$PBUILDER_REPO/trustdb.gpg" \
+    --export-secret-keys \
+    --armor | gpg --allow-secret-key-import --import --no-options
 
 echo "Installing $1 as trusted key in apt..."
-gpg --no-options --no-default-keyring --homedir $PBUILDER_REPO --keyring $PBUILDER_REPO/pbuilder-public.gpg --trustdb-name $PBUILDER_REPO/trustdb.gpg --export-secret-keys -a | sudo apt-key add -
+gpg --no-options \
+    --no-default-keyring \
+    --homedir "$PBUILDER_GPG" \
+    --keyring "$PBUILDER_REPO/pbuilder-public.gpg" \
+    --trustdb-name "$PBUILDER_REPO/trustdb.gpg" \
+    --export | sudo tee /etc/apt/trusted.gpg.d/pbuilder.gpg >/dev/null
 
 echo "Making pbuilder repository directory..."
-mkdir -p $HOME/pbuilder-repo
-cp -r pbuilder-repo/* $PBUILDER_REPO/
+mkdir -p PBUILDER_REPO
+if ! cp -r pbuilder-repo/* "$PBUILDER_REPO/" ; then
+    fatal "Error setting up repository base"
+fi
 
 echo "Setting up pbuilder hooks..."
-mkdir -p $PBUILDER_HOOKS
-cp .pbuilder-hooks/* $PBUILDER_HOOKS
+mkdir -p "$PBUILDER_HOOKS"
+if ! cp .pbuilder-hooks/* "$PBUILDER_HOOKS"; then
+    fatal "Error setting up pbuilder hooks"
+fi
 
 echo "Installing .pbuilderrc..."
-cp .pbuilderrc $HOME/.pbuilderrc
+if ! cp .pbuilderrc "$HOME/.pbuilderrc"; then
+    fatal "Error setting up pbuilderrc"
+fi
 
 echo "Your new pbuilder keys are the following:"
-gpg --no-options --no-default-keyring --homedir $PBUILDER_REPO --keyring $PBUILDER_REPO/pbuilder-public.gpg --trustdb-name $PBUILDER_REPO/trustdb.gpg --list-keys
+gpg --no-options \
+    --no-default-keyring \
+    --homedir "$PBUILDER_GPG" \
+    --keyring "$PBUILDER_REPO/pbuilder-public.gpg" \
+    --trustdb-name "$PBUILDER_REPO/trustdb.gpg" \
+    --list-keys
 
-read -p "Would you like to install the included .pbuilderrc file? (y/n default NO)" ANSWER
+read -r -p "Would you like to install the included .pbuilderrc file? (y/n default NO)" ANSWER
 if [[ $ANSWER =~ ^[Yy]$ ]]; then
     echo "Installing to $HOME/.pbuilderrc..."
-    if [ -e $HOME/.pbuilderrc ]; then
+    if [ -e "$HOME/.pbuilderrc" ]; then
         echo "Backing up existing .pbuilderrc as .pbuilderrc.$(date +%Y%m%d%H%M%S).bak"
         mv "$HOME/.pbuilderrc" "$HOME/.pbuilderrc.$(date +%Y%m%d%H%M%S).bak"
     fi

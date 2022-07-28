@@ -11,14 +11,41 @@
 # this is an ugly hack to try and let pbuilder know which user it should
 # be working with. Basically we define check if an environment variable exists
 # and if it does not, define it - this should catch the correct user.
-if [ -z $pbuilder_user ]; then
+function log() {
+  echo "$*" 1>&2
+}
+
+function fatal() {
+  echo "$*" 1>&2
+  exit 1
+}
+
+if [ -z "$pbuilder_user" ]; then
 	pbuilder_user=$SUDO_USER
 	export pbuilder_user
 fi
 echo "PBuilder User: $pbuilder_user"
 
+if [ -z "$pbuilder_user" ]; then
+    fatal "Failed to find a pbuilder username"
+fi
+
+declare -x HOME
+if ! HOME=$( getent passwd "$pbuilder_user" | cut -d: -f6 ); then
+    fatal "Could not find pbuilder_user home directory"
+fi
+
+# Get the distribution names
+: "${DIST:=$(lsb_release --short --codename)}"
+: "${ARCH:=$(dpkg --print-architecture)}"
+
+export PBUILDER_REPO="$HOME/pbuilder/repo"
+export PBUILDER_HOOKS="$HOME/pbuilder/hooks"
+export PBUILDER_CACHE="$HOME/.config/pbuilder"
+export PBUILDER_GPG="$HOME/pbuilder/repo/gpg"
+
 # determine if we're invoked by pbuilder
-if [ -z $BASEPATH ]; then
+if [ -z "$BASEPATH" ]; then
     IS_PBUILDER=1
 fi
 
@@ -27,18 +54,11 @@ GPG_HOME=$(gpg --version | grep 'Home:' | cut -d' ' -f2)
 
 # Export ~/.devscripts into the environment
 set -a
-source ~/.devscripts
+source "$HOME/.devscripts"
 set +a
 
-# Get the distribution names
-: ${DIST:=$(lsb_release --short --codename)}
-: ${ARCH:=$(dpkg --print-architecture)}
-
-# 
-
 # Do any remapping for Linux Mint
-export PBUILDERHOOKS=~/.pbuilder-hooks
-. $PBUILDERHOOKS/common-name-remapping
+source "$PBUILDER_HOOKS/common-name-remapping"
 
 # detect and set http_proxy using local script
 APT_PROXY_CMD=$(cat /etc/apt/apt.conf /etc/apt/apt.conf.d/* 2> /dev/null |
@@ -47,9 +67,9 @@ APT_PROXY_CMD=$(cat /etc/apt/apt.conf /etc/apt/apt.conf.d/* 2> /dev/null |
                 sed 's/Acquire::http::ProxyAutoDetect\ //' | sed '$s/;$//')
 
 # did we get an apt proxy cmd?
-if [ ! -z $APT_PROXY_CMD ]; then
+if [ ! -z "$APT_PROXY_CMD" ]; then
 	echo "Trying to detect proxy using apt script..."
-	deb_proxy=$(bash -c $APT_PROXY_CMD)
+	deb_proxy=$(bash -c "$APT_PROXY_CMD")
 else
 	# try and get just a regular proxy
 	deb_proxy=$(cat /etc/apt/apt.conf /etc/apt/apt.conf.d/* 2> /dev/null |
@@ -58,12 +78,12 @@ else
 		            sed 's/Acquire::http::Proxy\ //' | sed '$s/;$//' | tr -d '"' )
 fi
 
-if [ ! -z $deb_proxy ]; then
+if [ ! -z "$deb_proxy" ]; then
 	echo "pbuilder will use proxy: $deb_proxy"
 else
 	# Check if there's an http_proxy in the environment
-	if [ ! -z $http_proxy ]; then
-	    deb_proxy=$http_proxy
+	if [ ! -z "$http_proxy" ]; then
+	    deb_proxy="$http_proxy"
 	else
 	    echo "No proxy will be used."
 	fi
@@ -71,9 +91,9 @@ fi
 
 # Try and match names to mirror sites
 shopt -s extglob
-UBUNTUNAMES="@($(cat $PBUILDERHOOKS/ubuntu-names))"
-OLDUBUNTUNAMES="@($(cat $PBUILDERHOOKS/oldubuntu-names))"
-DEBIANNAMES="@($(cat $PBUILDERHOOKS/debian-names))"
+UBUNTUNAMES="@($(cat "$PBUILDER_HOOKS/ubuntu-names"))"
+OLDUBUNTUNAMES="@($(cat "$PBUILDER_HOOKS/oldubuntu-names"))"
+DEBIANNAMES="@($(cat "$PBUILDER_HOOKS/debian-names"))"
 
 case "$DIST" in
     $UBUNTUNAMES) # ubuntu specific
@@ -97,8 +117,8 @@ case "$DIST" in
             if [[ "$UBUNTULISTITEM" == "$DIST" ]]; then
                 echo "New release found in Ubuntu archives!"
                 echo "Adding it to the known release list."
-                echo "$DIST|$(cat $PBUILDERHOOKS/ubuntu-names)" \
-                    > $PBUILDERHOOKS/ubuntu-names
+                echo "$DIST|$(cat $PBUILDER_HOOKS/ubuntu-names)" \
+                    > $PBUILDER_HOOKS/ubuntu-names
                 MIRRORSITE="http://archive.ubuntu.com/ubuntu/"
                 COMPONENTS="main restricted universe multiverse"
                 RESOLVEDUNKNOWN=1
@@ -121,9 +141,9 @@ LOCAL_CONFIGURED_MIRROR=$(cat /etc/apt/sources.list /etc/apt/sources.list.d/*.li
 					grep "^deb " | 
 					grep -e "$DIST $COMPONENTS" | sed s/deb\ // | cut -d' ' -f1)
 
-if [ ! -z $LOCAL_CONFIGURED_MIRROR ]; then
-	echo "Found alternative mirrors."
-	MIRRORSITE=$LOCAL_CONFIGURED_MIRROR
+if [ ! -z "$LOCAL_CONFIGURED_MIRROR" ]; then
+	MIRRORSITE="$LOCAL_CONFIGURED_MIRROR"
+    log "Found alternative mirrors: $MIRRORSITE"
 fi
 
 # Packages needed to support deb details
@@ -139,38 +159,55 @@ case "$DIST" in
         ;;
 esac
 
-# Add local keyrings. Due to changes, we actually need to create and manage
-# a combined trusted keyring to keep everything working.
-PBUILDERREPO=$HOME/pbuilder-repo
-
-echo "Merging host keyrings into $PBUILDERREPO/host-trusted.gpg"
-echo $PBUILDERREPO
-if [ -e $PBUILDERREPO/host-trusted.gpg ]; then
-    mv -f $PBUILDERREPO/host-trusted.gpg $PBUILDERREPO/host-trusted.gpg.bak
+echo "Merging host keyrings into $PBUILDER_REPO/host-trusted.gpg"
+if [ -e "$PBUILDER_REPO/host-trusted.gpg" ]; then
+    if ! mv -f "$PBUILDER_REPO/host-trusted.gpg" "$PBUILDER_REPO/host-trusted.gpg.bak"; then
+        fatal "Failed to backup host trusted keyrings for the repo"
+    fi
 fi
-gpg --no-options --no-default-keyring --export -a --keyring /etc/apt/trusted.gpg | \
-    gpg --homedir $PBUILDERREPO --no-options --no-default-keyring --keyring $PBUILDERREPO/host-trusted.gpg --import -a || true
-find /etc/apt/trusted.gpg.d/ -type f -name '*.gpg' -print | while read f; do
-    gpg --no-options --no-default-keyring --export -a --keyring $f | \
-        gpg --homedir $PBUILDERREPO --no-options --no-default-keyring --keyring $PBUILDERREPO/host-trusted.gpg --import -a || true
-done
 
-APTKEYRINGS=( "$PBUILDERREPO/host-trusted.gpg" )
-DEBOOTSTRAPOPTS="--keyring=$PBUILDERREPO/host-trusted.gpg"
+gpg \
+    --no-options \
+    --no-default-keyring \
+    --export \
+    --armor \
+    --keyring /etc/apt/trusted.gpg | \
+        gpg \
+        --homedir "$PBUILDER_GPG" \
+        --no-options \
+        --no-default-keyring \
+        --keyring "$PBUILDER_REPO/host-trusted.gpg" \
+        --import --armor || true
+
+while read -r f; do
+    gpg --no-options --no-default-keyring --export -a --keyring "$f" | \
+        gpg \
+            --homedir "$PBUILDER_GPG" \
+            --no-options \
+            --no-default-keyring \
+            --keyring "$PBUILDER_REPO/host-trusted.gpg" \
+        --import -a || true
+done < <(find /etc/apt/trusted.gpg.d/ -type f -name '*.gpg' -print)
+
+# Calculate concurrency value for local system
+CONCURRENCY="$(( $(grep -c processor < /proc/cpuinfo) / 2 ))"
+
+APTKEYRINGS=( "$PBUILDER_REPO/host-trusted.gpg" )
+DEBOOTSTRAPOPTS="--keyring=$PBUILDER_REPO/host-trusted.gpg"
 # sign packages - if I'm building them they're trusted by me at least
 AUTO_DEBSIGN="yes"
 
 NAME="$DIST-$ARCH"
 DISTRIBUTION="$DIST"
 DEBOOTSTRAPOPTS=("--arch" "$ARCH" "${DEBOOTSTRAPOPTS[@]}")
-BUILDRESULT="/var/cache/pbuilder/$NAME/result"
-DEBBUILDOPTS="-j4 "
+BUILDRESULT="${PBUILDER_CACHE}/$NAME/result"
+DEBBUILDOPTS="-j${CONCURRENCY} "
 
 # Regular pbuilder support
-BASETGZ="$(dirname $BASETGZ)/$NAME-base.tgz"
+BASETGZ="$(dirname "$BASETGZ")/$NAME-base.tgz"
 
 # QemuBuilder/CowDancer
-BASEPATH="(dirname $BASEPATH)/$NAME-base.qemu"
+BASEPATH="$(dirname "$BASEPATH")/$NAME-base.qemu"
 
 # TODO: replace with something that automatically acquires the right kernel
 KERNEL="/vmlinuz"
@@ -186,7 +223,7 @@ APTCACHE=""
 # Dump out some information about what's going on here
 echo "Environment name: $NAME"
 echo "Distribution is: $DIST"
-echo "DEBOOTSTRAPOPTS is: ${DEBOOTSTRAPOPTS[@]}"
+echo "DEBOOTSTRAPOPTS is: ${DEBOOTSTRAPOPTS[*]}"
 
 # Adjust output according to pbuilder/qemubuilder
 if [ -z $IS_PBUILDER ]; then
@@ -196,12 +233,11 @@ else
 fi
 
 # Local pbuilder result repository
-PBUILDER_REPO=$(eval echo ~${pbuilder_user})/pbuilder-repo
 echo "Local pbuilder repository: $PBUILDER_REPO"
 
-BINDMOUNTS="$PBUILDER_REPO $BUILDRESULT $PBUILDERHOOKS /etc/apt"
+BINDMOUNTS="$PBUILDER_REPO $BUILDRESULT $PBUILDER_HOOKS /etc/apt"
 OTHERMIRROR="deb file:$PBUILDER_REPO/$NAME ./"
-HOOKDIR="$PBUILDERHOOKS"
+HOOKDIR="$PBUILDER_HOOKS"
 
 # Setup the build destination
 if [ ! -d $BUILDRESULT ] ; then
@@ -212,15 +248,15 @@ if [ ! -d $BUILDRESULT ] ; then
 fi
 
 # Setup the local build repository
-if [ ! -d $PBUILDER_REPO/$NAME ] ; then
-	mkdir -p $PBUILDER_REPO/$NAME
+if [ ! -d "$PBUILDER_REPO/$NAME" ] ; then
+	mkdir -p "$PBUILDER_REPO/$NAME"
 	# set permissions so I can delete files
-	chgrp $pbuilder_user $PBUILDER_REPO/$NAME
-	chmod g+rwxs $PBUILDER_REPO/$NAME
+	chgrp "$pbuilder_user" "$PBUILDER_REPO/$NAME"
+	chmod g+rwxs "$PBUILDER_REPO/$NAME"
 fi
 
-if [ ! -e $PBUILDER_REPO/$NAME/apt-ftparchive.conf ]; then
-	cat << EOF > $PBUILDER_REPO/$NAME/apt-ftparchive.conf
+if [ ! -e "$PBUILDER_REPO/$NAME/apt-ftparchive.conf" ]; then
+	cat << EOF > "$PBUILDER_REPO/$NAME/apt-ftparchive.conf"
 # Configuration file for the pbuilder flat-file archive.
 
 APT::FTPArchive::Release::Codename "$DIST";
@@ -234,16 +270,16 @@ fi
 
 # PBuilder create will fail if apt errors out trying to download a non-existent
 # packages file. It should always exist, so create it here if it doesn't.
-if [ ! -e $PBUILDER_REPO/$NAME/Packages ]; then
-	touch $PBUILDER_REPO/$NAME/Packages
+if [ ! -e "$PBUILDER_REPO/$NAME/Packages" ]; then
+	touch "$PBUILDER_REPO/$NAME/Packages"
 fi
 
 # Make sure the chroot knows where files for the local repo will go.
-if [ -e $BUILDRESULT/.local_repository_location ] ; then
-	rm $BUILDRESULT/.local_repository_location
+if [ -e "$BUILDRESULT/.local_repository_location" ] ; then
+	rm "$BUILDRESULT/.local_repository_location"
 fi
 
-touch $BUILDRESULT/.local_repository_location
+touch "$BUILDRESULT/.local_repository_location"
 	cat << EOF > $BUILDRESULT/.local_repository_location
 $PBUILDER_REPO
 EOF

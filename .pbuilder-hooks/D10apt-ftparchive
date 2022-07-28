@@ -5,63 +5,91 @@
 # 2009-04-09 tyler - use previously built packages as an apt source
 # http://blog.edseek.com/~jasonb/articles/pbuilder_backports/pbuilderbuild.html#pbuilderhook
 
-echo Calling $0
+# See: https://stackoverflow.com/questions/59895/how-to-get-the-source-directory-of-a-bash-script-from-within-the-script-itself
+# Note: you can't refactor this out: its at the top of every script so the scripts can find their includes.
+SOURCE="${BASH_SOURCE[0]}"
+while [ -h "$SOURCE" ]; do # resolve $SOURCE until the file is no longer a symlink
+  DIR="$( cd -P "$( dirname "$SOURCE" )" >/dev/null 2>&1 && pwd )"
+  SOURCE="$(readlink "$SOURCE")"
+  [[ $SOURCE != /* ]] && SOURCE="$DIR/$SOURCE" # if $SOURCE was a relative symlink, we need to resolve it relative to the path where the symlink file was located
+done
+SCRIPT_DIR="$( cd -P "$( dirname "$SOURCE" )" >/dev/null 2>&1 && pwd )"
 
-: ${DIST:=$(lsb_release --short --codename)}
-: ${ARCH:=$(dpkg --print-architecture)}
+function log() {
+  echo "$*" 1>&2
+}
+
+function fatal() {
+  echo "$*" 1>&2
+  exit 1
+}
+
+echo Calling "$0"
+
+: "${DIST:=$(lsb_release --short --codename)}"
+: "${ARCH:=$(dpkg --print-architecture)}"
 
 echo "Running apt-ftparchive for $DIST-$ARCH"
 
 # Run the name remap code
-#PBUILDERHOOKS=~/.pbuilder-hooks
-. $PBUILDERHOOKS/common-name-remapping
+. "$PBUILDER_HOOKS/common-name-remapping"
 
 NAME="$DIST-$ARCH"
 BUILDRESULT="/var/cache/pbuilder/$NAME/result"
 
 # Sanity check!
-if [ ! -d $BUILDRESULT ]; then
-    echo Could not find $BUILDRESULT
+if [ ! -d "$BUILDRESULT" ]; then
+    echo Could not find "$BUILDRESULT"
     echo Aborting operation.
     exit 1
 fi
 
 # get the local repository location (see .pbuilderrc)
 # (we read in from a file here since we can't rely on knowing the username)
-PBUILDER_REPO=`cat $BUILDRESULT/.local_repository_location`
+PBUILDER_REPO=$(cat $BUILDRESULT/.local_repository_location)
+PBUILDER_GPG="$PBUILDER_REPO/gpg"
 
 # move built packages to localrepo
 if [[ ! -z $(ls "$BUILDRESULT") ]]; then
-    mv -t "$PBUILDER_REPO/$NAME" $BUILDRESULT/*
+    if ! mv -t "$PBUILDER_REPO/$NAME" "$BUILDRESULT/*" ; then
+        fatal "Failed to move build packages to local repository"
+    fi
 fi
 
 # chown the files back to the owning user
-chown $(stat -c '%u:%g' "$PBUILDER_REPO/$NAME") $PBUILDER_REPO/$NAME/*
+if ! chown "$(stat -c '%u:%g' "$PBUILDER_REPO/$NAME")" "$PBUILDER_REPO/$NAME/*"; then
+    fatal "Failed to change the ownership of built packages back to user"
+fi
 
 echo "Local Repository Location is: $PBUILDER_REPO/$NAME"
 
 # create apt archive of previously built packages
-( cd $PBUILDER_REPO/$NAME ; apt-ftparchive packages -c $PBUILDER_REPO/$NAME/apt-ftparchive.conf . > $PBUILDER_REPO/$NAME/Packages ) || ( echo Packages generation failed && exit 1 )
-( cd $PBUILDER_REPO/$NAME ; apt-ftparchive sources -c $PBUILDER_REPO/$NAME/apt-ftparchive.conf . > $PBUILDER_REPO/$NAME/Sources ) || ( echo Sources generation failed && exit 1 )
-( cd $PBUILDER_REPO/$NAME ; apt-ftparchive release -c $PBUILDER_REPO/$NAME/apt-ftparchive.conf . > $PBUILDER_REPO/$NAME/Release ) || ( echo Release generation failed && exit 1 )
+pushd "$PBUILDER_REPO/$NAME" || fatal "Could not change dir to $PBUILDER_REPO/$NAME"
 
-# sign the new release file
-# note: gpg is kind of a pain when you're trying to use it independently of 
-# it's normal procedures.
-( \
-    cd $PBUILDER_REPO/$NAME ; \
-    gpg --homedir $PBUILDER_REPO --yes --no-options --no-default-keyring \
-    --keyring $PBUILDER_REPO/pbuilder-public.gpg \
-    --trustdb-name $PBUILDER_REPO/trustdb.gpg -abs \
-    -o $PBUILDER_REPO/$NAME/Release.gpg \
-    $PBUILDER_REPO/$NAME/Release \
-) || ( echo "Release signing failed." && exit 1 )
+if ! apt-ftparchive packages -c "$PBUILDER_REPO/$NAME/apt-ftparchive.conf" . > "$PBUILDER_REPO/$NAME/Packages"; then
+    fatal "Packages file generation failed"
+fi
 
-# Run apt-get update on the pbuilder-image (or local system if we're invoking
-# manually
-#apt-get update -o Dir::Etc::sourcelist="sources.list.d/local-repository.list" \
-#-o Dir::Etc::sourceparts="-" -o APT::Get::List-Cleanup="0"
+if ! apt-ftparchive sources -c "$PBUILDER_REPO/$NAME/apt-ftparchive.conf" . > "$PBUILDER_REPO/$NAME/Sources"; then
+    fatal "Packages file generation failed"
+fi
 
-apt-get update
+if ! apt-ftparchive release -c "$PBUILDER_REPO/$NAME/apt-ftparchive.conf" . > "$PBUILDER_REPO/$NAME/Release"; then
+    fatal "Packages file generation failed"
+fi
+
+log "Signing Release File"
+if ! gpg --homedir "$PBUILDER_GPG" --yes --no-options --no-default-keyring \
+    --keyring "$PBUILDER_REPO/pbuilder-public.gpg" \
+    --trustdb-name "$PBUILDER_REPO/trustdb.gpg" -abs \
+    -o "$PBUILDER_REPO/$NAME/Release.gpg" \
+    "$PBUILDER_REPO/$NAME/Release" ; then
+    log "Failed to sign the new Release file: $PBUILDER_REPO/$NAME/Release"
+fi
+
+popd || fatal "Could not restore original directory"
+
+log "Executing apt update with new package "
+apt update
 
 exit 0
