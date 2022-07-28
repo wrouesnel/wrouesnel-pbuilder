@@ -1,0 +1,3 @@
+#!/bin/bash
+# pbuilder wrapper command
+sudo HOME=$HOME pbuilder "$@"

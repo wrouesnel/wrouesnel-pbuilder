@@ -29,30 +29,26 @@ PBUILDER_GPG="$HOME/pbuilder/repo/gpg"
 mkdir -p "$PBUILDER_REPO"
 mkdir -p "$PBUILDER_HOOKS"
 
-echo "Generating a key for use as signing..."
-gpg --no-options \
+gpg_args=(\
+    --no-options \
     --no-default-keyring \
     --homedir "$PBUILDER_GPG" \
     --keyring "$PBUILDER_REPO/pbuilder-public.gpg" \
     --trustdb-name "$PBUILDER_REPO/trustdb.gpg" \
-    --gen-key
+)
+
+if [ ! -e "$PBUILDER_REPO/pbuilder-public.gpg" ]; then
+    echo "Generating a key for use as signing..."
+    gpg "${gpg_args[@]}" --gen-key
+fi
 
 echo "Installing the new key as a trusted key in the users keyring..."
-gpg --no-options \
-    --no-default-keyring \
-    --homedir "$PBUILDER_GPG" \
-    --keyring "$PBUILDER_REPO/pbuilder-public.gpg" \
-    --trustdb-name "$PBUILDER_REPO/trustdb.gpg" \
+gpg "${gpg_args[@]}" \
     --export-secret-keys \
     --armor | gpg --allow-secret-key-import --import --no-options
 
 echo "Installing $1 as trusted key in apt..."
-gpg --no-options \
-    --no-default-keyring \
-    --homedir "$PBUILDER_GPG" \
-    --keyring "$PBUILDER_REPO/pbuilder-public.gpg" \
-    --trustdb-name "$PBUILDER_REPO/trustdb.gpg" \
-    --export | sudo tee /etc/apt/trusted.gpg.d/pbuilder.gpg >/dev/null
+gpg "${gpg_args[@]}" --export | sudo tee /etc/apt/trusted.gpg.d/pbuilder.gpg >/dev/null
 
 echo "Making pbuilder repository directory..."
 mkdir -p PBUILDER_REPO
@@ -62,22 +58,17 @@ fi
 
 echo "Setting up pbuilder hooks..."
 mkdir -p "$PBUILDER_HOOKS"
-if ! cp .pbuilder-hooks/* "$PBUILDER_HOOKS"; then
+if ! cp -t "$PBUILDER_HOOKS" "${SCRIPT_DIR}/.pbuilder-hooks/*"; then
     fatal "Error setting up pbuilder hooks"
 fi
 
 echo "Installing .pbuilderrc..."
-if ! cp .pbuilderrc "$HOME/.pbuilderrc"; then
+if ! cp "${SCRIPT_DIR}/.pbuilderrc" "$HOME/.pbuilderrc"; then
     fatal "Error setting up pbuilderrc"
 fi
 
 echo "Your new pbuilder keys are the following:"
-gpg --no-options \
-    --no-default-keyring \
-    --homedir "$PBUILDER_GPG" \
-    --keyring "$PBUILDER_REPO/pbuilder-public.gpg" \
-    --trustdb-name "$PBUILDER_REPO/trustdb.gpg" \
-    --list-keys
+gpg "${gpg_args[@]}" --list-keys
 
 read -r -p "Would you like to install the included .pbuilderrc file? (y/n default NO)" ANSWER
 if [[ $ANSWER =~ ^[Yy]$ ]]; then
@@ -86,7 +77,16 @@ if [[ $ANSWER =~ ^[Yy]$ ]]; then
         echo "Backing up existing .pbuilderrc as .pbuilderrc.$(date +%Y%m%d%H%M%S).bak"
         mv "$HOME/.pbuilderrc" "$HOME/.pbuilderrc.$(date +%Y%m%d%H%M%S).bak"
     fi
-    cp ".pbuilderrc" "$HOME/.pbuilderrc"
+    cp "${SCRIPT_DIR}/.pbuilderrc" "$HOME/.pbuilderrc" || fatal "Could not copy .pbuilderrc"
+fi
+
+log "Installing the pbuilder override command to ensure correct execution"
+if ! cp -f "${SCRIPT_DIR}/pbuilder" "$HOME/bin/pbuilder"; then
+    fatal "Failed to copy local pbuilder command"
+fi
+
+if ! chmod +x "$HOME/bin/pbuilder"; then
+    fatal "Failed to make local pbuilder command executable"
 fi
 
 exit 0
