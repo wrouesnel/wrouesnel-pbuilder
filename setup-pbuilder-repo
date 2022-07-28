@@ -22,7 +22,7 @@ function fatal() {
 
 PBUILDER_REPO="$HOME/pbuilder/repo"
 PBUILDER_HOOKS="$HOME/pbuilder/hooks"
-PBUILDER_CACHE="$HOME/.config/pbuilder"
+PBUILDER_CACHE="$HOME/.cache/pbuilder"
 
 PBUILDER_GPG="$HOME/pbuilder/repo/gpg"
 
@@ -51,14 +51,13 @@ echo "Installing $1 as trusted key in apt..."
 gpg "${gpg_args[@]}" --export | sudo tee /etc/apt/trusted.gpg.d/pbuilder.gpg >/dev/null
 
 echo "Making pbuilder repository directory..."
-mkdir -p PBUILDER_REPO
 if ! cp -r pbuilder-repo/* "$PBUILDER_REPO/" ; then
     fatal "Error setting up repository base"
 fi
 
 echo "Setting up pbuilder hooks..."
 mkdir -p "$PBUILDER_HOOKS"
-if ! cp -t "$PBUILDER_HOOKS" "${SCRIPT_DIR}/.pbuilder-hooks/*"; then
+if ! cp -t "$PBUILDER_HOOKS" "${SCRIPT_DIR}/.pbuilder-hooks"/*; then
     fatal "Error setting up pbuilder hooks"
 fi
 

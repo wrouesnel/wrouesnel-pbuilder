@@ -41,7 +41,7 @@ fi
 
 export PBUILDER_REPO="$HOME/pbuilder/repo"
 export PBUILDER_HOOKS="$HOME/pbuilder/hooks"
-export PBUILDER_CACHE="$HOME/.config/pbuilder"
+export PBUILDER_CACHE="$HOME/.cache/pbuilder"
 export PBUILDER_GPG="$HOME/pbuilder/repo/gpg"
 
 # determine if we're invoked by pbuilder
@@ -198,16 +198,17 @@ DEBOOTSTRAPOPTS="--keyring=$PBUILDER_REPO/host-trusted.gpg"
 AUTO_DEBSIGN="yes"
 
 NAME="$DIST-$ARCH"
-DISTRIBUTION="$DIST"
-DEBOOTSTRAPOPTS=("--arch" "$ARCH" "${DEBOOTSTRAPOPTS[@]}")
-BUILDRESULT="${PBUILDER_CACHE}/$NAME/result"
-DEBBUILDOPTS="-j${CONCURRENCY} "
+export DISTRIBUTION="$DIST"
+export DEBOOTSTRAPOPTS=("--arch" "$ARCH" "${DEBOOTSTRAPOPTS[@]}")
+export BUILDRESULT="${PBUILDER_CACHE}/$NAME/result"
+export BUILDPLACE="${PBUILDER_CACHE}/$NAME/build"
+export DEBBUILDOPTS="-j${CONCURRENCY} "
 
 # Regular pbuilder support
-BASETGZ="$(dirname "$BASETGZ")/$NAME-base.tgz"
+export BASETGZ="${PBUILDER_CACHE}/$NAME-base.tgz"
 
 # QemuBuilder/CowDancer
-BASEPATH="$(dirname "$BASEPATH")/$NAME-base.qemu"
+export BASEPATH="${PBUILDER_CACHE}/$NAME-base.qemu"
 
 # TODO: replace with something that automatically acquires the right kernel
 KERNEL="/vmlinuz"
@@ -215,7 +216,7 @@ INITRD="/initrd.img"
 ARCHITECTURE="$ARCH"
 
 # Disable apt-cache since we use apt-cacher-ng
-APTCACHE=""
+export APTCACHE=""
 # Don't rebuild source files (.diff.gz, .dsc), or list them in .changes
 # See Ubuntu bug 118181
 #DEBBUILDOPTS=""
@@ -235,16 +236,16 @@ fi
 # Local pbuilder result repository
 echo "Local pbuilder repository: $PBUILDER_REPO"
 
-BINDMOUNTS="$PBUILDER_REPO $BUILDRESULT $PBUILDER_HOOKS /etc/apt"
-OTHERMIRROR="deb file:$PBUILDER_REPO/$NAME ./"
-HOOKDIR="$PBUILDER_HOOKS"
+export BINDMOUNTS="$PBUILDER_REPO $BUILDRESULT $PBUILDER_HOOKS /etc/apt"
+export OTHERMIRROR="deb file:$PBUILDER_REPO/$NAME ./"
+export HOOKDIR="$PBUILDER_HOOKS"
 
 # Setup the build destination
 if [ ! -d $BUILDRESULT ] ; then
-        mkdir -p $BUILDRESULT
+        mkdir -p "$BUILDRESULT"
         # set permissions so I can delete files
-        chgrp $pbuilder_user $BUILDRESULT
-        chmod g+rwx $BUILDRESULT
+        chgrp "$pbuilder_user" "$BUILDRESULT"
+        chmod g+rwx "$BUILDRESULT"
 fi
 
 # Setup the local build repository
