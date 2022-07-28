@@ -166,21 +166,11 @@ if [ -e "$PBUILDER_REPO/host-trusted.gpg" ]; then
     fi
 fi
 
-gpg \
-    --homedir "$PBUILDER_GPG" \
-    --no-options \
-    --no-default-keyring \
-    --export \
-    --armor \
-    --keyring /etc/apt/trusted.gpg | \
-        gpg \
-        --homedir "$PBUILDER_GPG" \
-        --no-options \
-        --no-default-keyring \
-        --keyring "$PBUILDER_REPO/host-trusted.gpg" \
-        --import --armor || true
+host_keyrings=( "etc/apt/trusted.gpg" )
+readarray -t host_keyrings -O "${#host_keyrings[@]}" < <(find /etc/apt/trusted.gpg.d/ -name '*.gpg' -print)
+readarray -t host_keyrings -O "${#host_keyrings[@]}" < <(find /etc/apt/keyrings/ -name '*.gpg' -print)
 
-while read -r f; do
+for f in "${host_keyrings[@]}"; do
     log "Importing: $f"
     gpg --homedir "$PBUILDER_GPG" --no-options --no-default-keyring --export --armor --keyring "$f" | \
         gpg \
@@ -189,7 +179,7 @@ while read -r f; do
             --no-default-keyring \
             --keyring "$PBUILDER_REPO/host-trusted.gpg" \
             --import --armor
-done < <(find /etc/apt/trusted.gpg.d/ -name '*.gpg' -print)
+done
 
 # Calculate concurrency value for local system
 CONCURRENCY="$(( $(grep -c processor < /proc/cpuinfo) / 2 ))"
