@@ -32,10 +32,10 @@ echo Calling "$0"
 echo "Running apt-ftparchive for $DIST-$ARCH"
 
 # Run the name remap code
-. "$PBUILDER_HOOKS/common-name-remapping"
+source "$PBUILDER_HOOKS/common-name-remapping"
 
 NAME="$DIST-$ARCH"
-BUILDRESULT="/var/cache/pbuilder/$NAME/result"
+#BUILDRESULT="/var/cache/pbuilder/$NAME/result"
 
 # Sanity check!
 if [ ! -d "$BUILDRESULT" ]; then
@@ -50,16 +50,19 @@ PBUILDER_REPO=$(cat $BUILDRESULT/.local_repository_location)
 PBUILDER_GPG="$PBUILDER_REPO/gpg"
 
 # move built packages to localrepo
-if [[ ! -z $(ls "$BUILDRESULT") ]]; then
-    if ! mv -t "$PBUILDER_REPO/$NAME" "$BUILDRESULT/*" ; then
+if [ -n "$(ls "$BUILDRESULT")" ]; then
+    if ! mv -t "$PBUILDER_REPO/$NAME" "$BUILDRESULT"/* ; then
         fatal "Failed to move build packages to local repository"
     fi
 fi
 
 # chown the files back to the owning user
-if ! chown "$(stat -c '%u:%g' "$PBUILDER_REPO/$NAME")" "$PBUILDER_REPO/$NAME/*"; then
-    fatal "Failed to change the ownership of built packages back to user"
-fi
+owning_user="$(stat -c '%u:%g' "$PBUILDER_REPO/$NAME")"
+while read -r output; do
+    if ! chown "$owning_user" "$output"; then
+        fatal "Failed to change the ownership of built packages back to user: $output"
+    fi
+done < <(find "$PBUILDER_REPO/$NAME" -mindepth 1 -print)
 
 echo "Local Repository Location is: $PBUILDER_REPO/$NAME"
 

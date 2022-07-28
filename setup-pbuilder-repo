@@ -50,6 +50,8 @@ gpg "${gpg_args[@]}" \
 echo "Installing $1 as trusted key in apt..."
 gpg "${gpg_args[@]}" --export | sudo tee /etc/apt/trusted.gpg.d/pbuilder.gpg >/dev/null
 
+echo "Setting up a trustedkeys.gpg keyring"
+
 echo "Making pbuilder repository directory..."
 if ! cp -r pbuilder-repo/* "$PBUILDER_REPO/" ; then
     fatal "Error setting up repository base"

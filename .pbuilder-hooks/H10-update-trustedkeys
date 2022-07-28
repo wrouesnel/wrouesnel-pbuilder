@@ -1,0 +1,15 @@
+#!/bin/bash
+# Symlink the users trusted keys to the root
+
+if [ -z "$TRUSTED_KEYS" ]; then
+    exit 0
+fi
+
+if [ ! -e "$TRUSTED_KEYS" ]; then
+    exit 0
+fi 
+
+echo "Symlinking: $TRUSTED_KEYS -> /root/.gnupg/trustedkeys.gpg"
+mkdir -p "/root/.gnupg"
+ln -sf "$TRUSTED_KEYS" "/root/.gnupg/trustedkeys.gpg"
+exit 0

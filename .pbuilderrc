@@ -44,13 +44,15 @@ export PBUILDER_HOOKS="$HOME/pbuilder/hooks"
 export PBUILDER_CACHE="$HOME/.cache/pbuilder"
 export PBUILDER_GPG="$HOME/pbuilder/repo/gpg"
 
+# Export the GPG home so it can bound into the build environment
+GPG_HOME=$(gpg --version | grep 'Home:' | cut -d' ' -f2)
+
+export TRUSTED_KEYS="$PBUILDER_REPO/host-trusted.gpg"
+
 # determine if we're invoked by pbuilder
 if [ -z "$BASEPATH" ]; then
     IS_PBUILDER=1
 fi
-
-# Export the GPG home so it can bound into the build environment
-GPG_HOME=$(gpg --version | grep 'Home:' | cut -d' ' -f2)
 
 # Export ~/.devscripts into the environment
 set -a
@@ -147,7 +149,7 @@ if [ ! -z "$LOCAL_CONFIGURED_MIRROR" ]; then
 fi
 
 # Packages needed to support deb details
-EXTRAPACKAGES="apt-utils lsb-release"
+EXTRAPACKAGES="apt-utils lsb-release ubuntu-keyring debian-keyring gpg"
 
 # configure dist specific packages
 case "$DIST" in
@@ -241,14 +243,13 @@ bind_mounts=(\
     "$PBUILDER_REPO" \
     "$BUILDRESULT" \
     "$PBUILDER_HOOKS" \
+    "/etc/apt/apt.conf.d" \
+    "/etc/apt/auth.conf.d" \
+    "/etc/apt/keyrings" \
+    "/etc/apt/preferences.d" \
+    "/etc/apt/sources.list" \
+    "/etc/apt/sources.list.d" \
 )
-
-# Search /etc/apt for any symlinks, resolve them, and add them to the bind mounts so
-# things work.
-while read -r linkname; do
-    bind_mounts+=( "$(readlink -f "$linkname")" )
-done < <(find /etc/apt -type l)
-bind_mounts+=( "$(readlink -f "$linkname")" )
 
 export BINDMOUNTS="${bind_mounts[*]}"
 export OTHERMIRROR="deb file:$PBUILDER_REPO/$NAME ./"
