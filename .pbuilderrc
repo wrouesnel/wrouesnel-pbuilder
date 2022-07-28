@@ -166,9 +166,17 @@ if [ -e "$PBUILDER_REPO/host-trusted.gpg" ]; then
     fi
 fi
 
-host_keyrings=( "etc/apt/trusted.gpg" )
-readarray -t host_keyrings -O "${#host_keyrings[@]}" < <(find /etc/apt/trusted.gpg.d/ -name '*.gpg' -print)
-readarray -t host_keyrings -O "${#host_keyrings[@]}" < <(find /etc/apt/keyrings/ -name '*.gpg' -print)
+# Ensure keyring is recreated
+gpg \
+    --homedir "$PBUILDER_GPG" \
+    --no-options \
+    --no-default-keyring \
+    --keyring "$PBUILDER_REPO/host-trusted.gpg" \
+    --list-keys
+
+host_keyrings=( "/etc/apt/trusted.gpg" )
+readarray -t -O "${#host_keyrings[@]}" host_keyrings < <(find /etc/apt/trusted.gpg.d/ -name '*.gpg' -print)
+readarray -t -O "${#host_keyrings[@]}" host_keyrings < <(find /etc/apt/keyrings/ -name '*.gpg' -print)
 
 for f in "${host_keyrings[@]}"; do
     log "Importing: $f"
@@ -184,7 +192,7 @@ done
 # Calculate concurrency value for local system
 CONCURRENCY="$(( $(grep -c processor < /proc/cpuinfo) / 2 ))"
 
-export APTKEYRINGS=( "$PBUILDER_REPO/host-trusted.gpg" )
+export APTKEYRINGS=( "${host_keyrings[@]}" )
 DEBOOTSTRAPOPTS="--keyring=$PBUILDER_REPO/host-trusted.gpg"
 # sign packages - if I'm building them they're trusted by me at least
 export AUTO_DEBSIGN="yes"
@@ -228,7 +236,21 @@ fi
 # Local pbuilder result repository
 echo "Local pbuilder repository: $PBUILDER_REPO"
 
-export BINDMOUNTS="$PBUILDER_REPO $BUILDRESULT $PBUILDER_HOOKS /etc/apt"
+# Complex bindmounts prevent symlinks in trust folders from taking us out.
+bind_mounts=(\
+    "$PBUILDER_REPO" \
+    "$BUILDRESULT" \
+    "$PBUILDER_HOOKS" \
+)
+
+# Search /etc/apt for any symlinks, resolve them, and add them to the bind mounts so
+# things work.
+while read -r linkname; do
+    bind_mounts+=( "$(readlink -f "$linkname")" )
+done < <(find /etc/apt -type l)
+bind_mounts+=( "$(readlink -f "$linkname")" )
+
+export BINDMOUNTS="${bind_mounts[*]}"
 export OTHERMIRROR="deb file:$PBUILDER_REPO/$NAME ./"
 export HOOKDIR="$PBUILDER_HOOKS"
 
