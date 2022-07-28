@@ -167,6 +167,7 @@ if [ -e "$PBUILDER_REPO/host-trusted.gpg" ]; then
 fi
 
 gpg \
+    --homedir "$PBUILDER_GPG" \
     --no-options \
     --no-default-keyring \
     --export \
@@ -180,22 +181,23 @@ gpg \
         --import --armor || true
 
 while read -r f; do
-    gpg --no-options --no-default-keyring --export -a --keyring "$f" | \
+    log "Importing: $f"
+    gpg --homedir "$PBUILDER_GPG" --no-options --no-default-keyring --export --armor --keyring "$f" | \
         gpg \
             --homedir "$PBUILDER_GPG" \
             --no-options \
             --no-default-keyring \
             --keyring "$PBUILDER_REPO/host-trusted.gpg" \
-        --import -a || true
-done < <(find /etc/apt/trusted.gpg.d/ -type f -name '*.gpg' -print)
+            --import --armor
+done < <(find /etc/apt/trusted.gpg.d/ -name '*.gpg' -print)
 
 # Calculate concurrency value for local system
 CONCURRENCY="$(( $(grep -c processor < /proc/cpuinfo) / 2 ))"
 
-APTKEYRINGS=( "$PBUILDER_REPO/host-trusted.gpg" )
+export APTKEYRINGS=( "$PBUILDER_REPO/host-trusted.gpg" )
 DEBOOTSTRAPOPTS="--keyring=$PBUILDER_REPO/host-trusted.gpg"
 # sign packages - if I'm building them they're trusted by me at least
-AUTO_DEBSIGN="yes"
+export AUTO_DEBSIGN="yes"
 
 NAME="$DIST-$ARCH"
 export DISTRIBUTION="$DIST"
@@ -211,9 +213,9 @@ export BASETGZ="${PBUILDER_CACHE}/$NAME-base.tgz"
 export BASEPATH="${PBUILDER_CACHE}/$NAME-base.qemu"
 
 # TODO: replace with something that automatically acquires the right kernel
-KERNEL="/vmlinuz"
-INITRD="/initrd.img"
-ARCHITECTURE="$ARCH"
+export KERNEL="/vmlinuz"
+export INITRD="/initrd.img"
+export ARCHITECTURE="$ARCH"
 
 # Disable apt-cache since we use apt-cacher-ng
 export APTCACHE=""
