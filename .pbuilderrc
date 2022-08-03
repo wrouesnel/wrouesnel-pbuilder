@@ -143,9 +143,14 @@ LOCAL_CONFIGURED_MIRROR=$(cat /etc/apt/sources.list /etc/apt/sources.list.d/*.li
 					grep "^deb " | 
 					grep -e "$DIST $COMPONENTS" | sed s/deb\ // | cut -d' ' -f1)
 
-if [ ! -z "$LOCAL_CONFIGURED_MIRROR" ]; then
+if [ -n "$LOCAL_CONFIGURED_MIRROR" ]; then
 	MIRRORSITE="$LOCAL_CONFIGURED_MIRROR"
     log "Found alternative mirrors: $MIRRORSITE"
+fi
+
+if [ -n $"${OVERRIDE_MIRROR}" ]; then
+    log "Override mirror specified: $OVERRIDE_MIRROR replacing $MIRRORSITE"
+    MIRRORSITE="$OVERRIDE_MIRROR"
 fi
 
 # Packages needed to support deb details
