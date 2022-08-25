@@ -44,6 +44,9 @@ export PBUILDER_HOOKS="$HOME/pbuilder/hooks"
 export PBUILDER_CACHE="$HOME/.cache/pbuilder"
 export PBUILDER_GPG="$HOME/pbuilder/repo/gpg"
 
+unset GOROOT
+unset GOPATH
+
 # Export the GPG home so it can bound into the build environment
 GPG_HOME=$(gpg --version | grep 'Home:' | cut -d' ' -f2)
 
@@ -66,7 +69,7 @@ source "$PBUILDER_HOOKS/common-name-remapping"
 APT_PROXY_CMD=$(cat /etc/apt/apt.conf /etc/apt/apt.conf.d/* 2> /dev/null |
  				grep -v -e ^# -e ^\/\/ -e ^$ | 
                 grep Acquire::http::ProxyAutoDetect |
-                sed 's/Acquire::http::ProxyAutoDetect\ //' | sed '$s/;$//')
+                sed 's/Acquire::http::ProxyAutoDetect\ //' | sed '$s/;$//' | tr -d '"')
 
 # did we get an apt proxy cmd?
 if [ ! -z "$APT_PROXY_CMD" ]; then
@@ -255,6 +258,10 @@ bind_mounts=(\
     "/etc/apt/sources.list" \
     "/etc/apt/sources.list.d" \
 )
+
+if [ -n "$APT_PROXY_CMD" ]; then
+    bind_mounts+=( "$APT_PROXY_CMD" )
+fi
 
 export BINDMOUNTS="${bind_mounts[*]}"
 export OTHERMIRROR="deb file:$PBUILDER_REPO/$NAME ./"
