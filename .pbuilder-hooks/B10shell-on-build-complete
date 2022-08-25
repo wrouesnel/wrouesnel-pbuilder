@@ -1,0 +1,9 @@
+#!/bin/sh
+# Maybe invoke shell if requested
+
+if [ "$PBUILDER_SHELL" = 1 ]; then
+    echo "Starting shell after build due to PBUILDER_SHELL=1" 1>&2
+    apt-get install -y --force-yes vim less bash
+    cd /tmp/buildd/*/debian/..
+    /bin/bash < /dev/tty > /dev/tty 2> /dev/tty
+fi
