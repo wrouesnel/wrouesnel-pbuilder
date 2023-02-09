@@ -1,0 +1,3 @@
+#!/bin/bash
+# cowbuilder wrapper command
+sudo HOME="$HOME" cowbuilder "$@"
