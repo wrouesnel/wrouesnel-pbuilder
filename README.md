@@ -28,3 +28,28 @@ folders.
 It will then also ask for sudo permissions and create `/etc/apt/sources.list.d/pbuilder.list`
 to make your built packages visible to both pbuilder and your system.
 
+## Errata
+
+There is a bug in `debootstrap` with the handing of `AptProxyCommand` directives - for apt this
+directive should return `DIRECT` when no proxy is needed. `debootstrap` however simply executes
+the command and shoves the output into `http_proxy=` - which means when you have no proxy it
+breaks.
+
+The following patch will fix it:
+
+```patch
+--- <unnamed>
++++ <unnamed>
+@@ -462,7 +462,10 @@
+         eval "$(apt-config shell AUTOPROXY Acquire::http::ProxyAutoDetect)"
+     fi
+     if [ -z "${http_proxy+x}" ] && [ -x "$AUTOPROXY" ]; then
+-        http_proxy="$($AUTOPROXY)"
++        autoproxy_result="$($AUTOPROXY)"
++        if [ "$autoproxy_result" != "DIRECT" ] && [ "$autoproxy_result" != "direct" ]; then
++            http_proxy="$($AUTOPROXY)"
++        fi
+         if [ -n "$http_proxy" ]; then
+             info AUTOPROXY "Using auto-detected proxy: $http_proxy"
+             export http_proxy
+```

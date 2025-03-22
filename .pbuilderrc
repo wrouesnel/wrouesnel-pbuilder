@@ -257,11 +257,17 @@ bind_mounts=(\
     "$PBUILDER_HOOKS" \
     "/etc/apt/apt.conf.d" \
     "/etc/apt/auth.conf.d" \
-    "/etc/apt/keyrings" \
     "/etc/apt/preferences.d" \
     "/etc/apt/sources.list" \
     "/etc/apt/sources.list.d" \
 )
+
+# Handle extra bind mounts which may not exist gracefully
+for extra_dir in "/etc/apt/keyrings" "/usr/share/keyrings" ; do
+    if [ -d "${extra_dir}" ]; then
+        bind_mounts+=( "${extra_dir}" )
+    fi
+done
 
 if [ -n "$APT_PROXY_CMD" ]; then
     bind_mounts+=( "$APT_PROXY_CMD" )
