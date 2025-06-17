@@ -1,0 +1,18 @@
+#!/bin/bash
+# Helper script to access the GPG store for the local pbuilder repo
+
+PBUILDER_REPO="$HOME/pbuilder/repo"
+PBUILDER_HOOKS="$HOME/pbuilder/hooks"
+PBUILDER_CACHE="$HOME/.cache/pbuilder"
+
+PBUILDER_GPG="$PBUILDER_REPO/gpg"
+
+gpg_args=(\
+    --no-options \
+    --no-default-keyring \
+    --homedir "$PBUILDER_GPG" \
+    --keyring "$PBUILDER_REPO/pbuilder-public.gpg" \
+    --trustdb-name "$PBUILDER_REPO/trustdb.gpg" \
+)
+
+gpg "${gpg_args[@]}" "$@"
