@@ -28,6 +28,7 @@ PBUILDER_GPG="$HOME/pbuilder/repo/gpg"
 
 mkdir -p "$PBUILDER_REPO"
 mkdir -p "$PBUILDER_HOOKS"
+mkdir -p "$PBUILDER_GPG"
 
 gpg_args=(\
     --no-options \
