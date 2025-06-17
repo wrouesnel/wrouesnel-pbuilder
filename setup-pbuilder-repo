@@ -24,7 +24,7 @@ PBUILDER_REPO="$HOME/pbuilder/repo"
 PBUILDER_HOOKS="$HOME/pbuilder/hooks"
 PBUILDER_CACHE="$HOME/.cache/pbuilder"
 
-PBUILDER_GPG="$HOME/pbuilder/repo/gpg"
+PBUILDER_GPG="$PBUILDER_REPO/gpg"
 
 mkdir -p "$PBUILDER_REPO"
 mkdir -p "$PBUILDER_HOOKS"
