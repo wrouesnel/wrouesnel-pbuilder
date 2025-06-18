@@ -141,10 +141,9 @@ esac
 # If DIST evaluates to a suitable line in the local apt configuration, use that
 # and take advantage of the likely primed cache if there's any proxy's in front
 # of us.
-LOCAL_CONFIGURED_MIRROR=$(cat /etc/apt/sources.list /etc/apt/sources.list.d/*.list 2> /dev/null | 
-					grep -v -e ^# -e ^\/\/ -e ^$ | 
-					grep "^deb " | 
-					grep -e "$DIST $COMPONENTS" | sed s/deb\ // | cut -d' ' -f1)
+LOCAL_CONFIGURED_MIRROR=$(cat /etc/apt/sources.list /etc/apt/sources.list.d/*.list 2> /dev/null | \
+                    grep -v -e ^# -e ^\/\/ -e ^$ | grep "^deb " | cut -d' ' -f2- | sed 's/\[.*\] //g' \
+					grep -e "$DIST $COMPONENTS" | grep -v 'ddebs' | sed s/deb\ // | cut -d' ' -f1)
 
 if [ -n "$LOCAL_CONFIGURED_MIRROR" ]; then
 	MIRRORSITE="$LOCAL_CONFIGURED_MIRROR"
