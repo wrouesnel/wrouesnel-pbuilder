@@ -66,10 +66,15 @@ set +a
 source "$PBUILDER_HOOKS/common-name-remapping"
 
 # detect and set http_proxy using local script
-APT_PROXY_CMD=$(cat /etc/apt/apt.conf /etc/apt/apt.conf.d/* 2> /dev/null |
- 				grep -v -e ^# -e ^\/\/ -e ^$ | 
-                grep Acquire::http::ProxyAutoDetect |
-                sed 's/Acquire::http::ProxyAutoDetect\ //' | sed '$s/;$//' | tr -d '"')
+APT_PROXY_CMD=$(cat /etc/apt/apt.conf /etc/apt/apt.conf.d/* 2> /dev/null | \
+    grep -v -e ^# -e ^\/\/ -e ^$ | \
+    grep 'Acquire::http::ProxyAutoDetect ' | \
+    sed 's/Acquire::http::Proxy\ //' | \
+    sed '$s/;$//' | \
+    tr -d '"' | \
+    cut -d';' -f1 | \
+    cut -d' ' -f2 \
+)
 
 # did we get an apt proxy cmd?
 if [ ! -z "$APT_PROXY_CMD" ]; then
