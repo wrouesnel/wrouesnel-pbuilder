@@ -91,4 +91,8 @@ if ! chmod +x "$HOME/bin/pbuilder"; then
     fatal "Failed to make local pbuilder command executable"
 fi
 
+if [ "$HOME/bin/pbuilder" != "$(command -v pbuilder)" ]; then
+    log "WARN: failed to set the pbuilder command as a global override. Consider modifying your PATH."
+fi
+
 exit 0

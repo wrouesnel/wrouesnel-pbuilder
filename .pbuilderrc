@@ -79,12 +79,12 @@ APT_PROXY_CMD=$(cat /etc/apt/apt.conf /etc/apt/apt.conf.d/* 2> /dev/null | \
 # did we get an apt proxy cmd?
 if [ ! -z "$APT_PROXY_CMD" ]; then
 	echo "Trying to detect proxy using apt script..."
-	deb_proxy=$(bash -c "$APT_PROXY_CMD")
+	deb_proxy="$(bash -c "$APT_PROXY_CMD")"
 else
 	# try and get just a regular proxy
 	deb_proxy=$(cat /etc/apt/apt.conf /etc/apt/apt.conf.d/* 2> /dev/null |
 	 				grep -v -e ^# -e ^\/\/ -e ^$ | 
-		            grep 'Acquire::http::ProxyAutoDetect ' |
+		            grep 'Acquire::http::Proxy ' |
 		            sed 's/Acquire::http::Proxy\ //' | sed '$s/;$//' | tr -d '"' )
 fi
 
@@ -161,7 +161,7 @@ if [ -n $"${OVERRIDE_MIRROR}" ]; then
 fi
 
 # Packages needed to support deb details
-EXTRAPACKAGES="apt-utils lsb-release ubuntu-keyring debian-keyring gpg"
+EXTRAPACKAGES="apt-utils lsb-release ubuntu-keyring debian-keyring gpg curl"
 
 # configure dist specific packages
 case "$DIST" in
