@@ -88,7 +88,7 @@ else
 		            sed 's/Acquire::http::Proxy\ //' | sed '$s/;$//' | tr -d '"' )
 fi
 
-if [ ! -z "$deb_proxy" ]; then
+if [ ! -z "$deb_proxy" ] && [ "$deb_proxy" != "direct" ] && [ "$deb_proxy" != "DIRECT" ]; then
 	echo "pbuilder will use proxy: $deb_proxy"
 else
 	# Check if there's an http_proxy in the environment
@@ -161,7 +161,7 @@ if [ -n $"${OVERRIDE_MIRROR}" ]; then
 fi
 
 # Packages needed to support deb details
-EXTRAPACKAGES="apt-utils lsb-release ubuntu-keyring debian-keyring gpg"
+EXTRAPACKAGES="apt-utils lsb-release ubuntu-keyring debian-keyring gpg curl"
 
 # configure dist specific packages
 case "$DIST" in
