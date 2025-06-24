@@ -261,6 +261,7 @@ bind_mounts=(\
     "/etc/apt/preferences.d" \
     "/etc/apt/sources.list" \
     "/etc/apt/sources.list.d" \
+    "/etc/ssl/certs" \
 )
 
 if [ -n "$APT_PROXY_CMD" ]; then
