@@ -257,7 +257,10 @@ bind_mounts=(\
     "$PBUILDER_HOOKS" \
     "/etc/apt/apt.conf.d" \
     "/etc/apt/auth.conf.d" \
+    "/usr/share/keyrings" \
     "/etc/apt/keyrings" \
+    "/etc/apt/trusted.gpg" \
+    "/etc/apt/trusted.gpg.d" \
     "/etc/apt/preferences.d" \
     "/etc/apt/sources.list" \
     "/etc/apt/sources.list.d" \
