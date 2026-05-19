@@ -44,6 +44,9 @@ if [ "$DIST" != "$(lsb_release --short --codename)" ]; then
     foreign_dist=1
 fi
 
+log "Got distribution: $DIST"
+log "Got architecture: $ARCH"
+
 export PBUILDER_REPO="$HOME/pbuilder/repo"
 export PBUILDER_HOOKS="$HOME/pbuilder/hooks"
 export PBUILDER_CACHE="$HOME/.cache/pbuilder"
@@ -268,7 +271,7 @@ bind_mounts=(\
 
 # If this is a foreign dist then don't include the current machines
 # 
-if [ $is_foreign_dist = 0 ]; then
+if [ $foreign_dist = 0 ]; then
     bind_mounts+=( "/etc/apt/sources.list" )
     bind_mounts+=( "/etc/apt/sources.list.d" )
 fi
