@@ -39,6 +39,11 @@ fi
 : "${DIST:=$(lsb_release --short --codename)}"
 : "${ARCH:=$(dpkg --print-architecture)}"
 
+foreign_dist=0
+if [ "$DIST" != "$(lsb_release --short --codename)" ]; then
+    foreign_dist=1
+fi
+
 export PBUILDER_REPO="$HOME/pbuilder/repo"
 export PBUILDER_HOOKS="$HOME/pbuilder/hooks"
 export PBUILDER_CACHE="$HOME/.cache/pbuilder"
@@ -258,10 +263,15 @@ bind_mounts=(\
     "/etc/apt/apt.conf.d" \
     "/etc/apt/auth.conf.d" \
     "/etc/apt/preferences.d" \
-    "/etc/apt/sources.list" \
-    "/etc/apt/sources.list.d" \
     "/etc/ssl/certs" \
 )
+
+# If this is a foreign dist then don't include the current machines
+# 
+if [ $is_foreign_dist = 0 ]; then
+    bind_mounts+=( "/etc/apt/sources.list" )
+    bind_mounts+=( "/etc/apt/sources.list.d" )
+fi
 
 # Handle extra bind mounts which may not exist gracefully
 for extra_dir in "/etc/apt/keyrings" "/usr/share/keyrings" ; do
